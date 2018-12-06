@@ -1,0 +1,175 @@
+---
+title: "678 final project"
+author: "Hao Qin"
+date: "11/28/2018"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+## 1: get the dataset 
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+"The first step is to plug the data I got into the R"
+library(ggplot2)
+library(dplyr)
+library(readxl)
+Patient_survey_HCAHPS_Hospital <- read_excel("C:/Users/Hao/Desktop/Patient_survey__HCAHPS__-_Hospital.xls")
+projectaaa=Patient_survey_HCAHPS_Hospital
+head(projectaaa)
+```
+
+
+## 2: Subsetting the Large Datasets
+ 
+```{r}
+"The second step is to clean the data to make it more clearly, I think there is a lot of varibals which does not have the relationship with the star ranking, so I just pick the related variables into a new dataset"
+
+"since the name of the variable is too complex, I use some nickname to show what it is"
+proj=projectaaa[c(1, 5, 9, 10,11, 12, 13, 14, 15,16,17,18,19,20)]
+colnames(proj)=c("ID","State", "M-ID", "Question", "AnswerD", "Star", "StarN", "AnwerP", "PercentN", "Mean", "Number", "NumberC", "ResponseP", "ResponseN")
+
+"from the website that I got the data, we can konw that in order to make the 'Not Applicable' and 'the Not Available' more easily to understand, I just rank then as one point star and five point stat"
+proj$Star[ proj$Star=="Not Applicable"]=1
+proj$Star[ proj$Star=="Not Available"]=5
+
+"the same as the percentage of anwer the question and the percentage of the response, in order to make the data more reliable, I just pick the average 50 and 33"
+proj$AnwerP[ proj$AnwerP=="Not Applicable"]=50
+proj$AnwerP[ proj$AnwerP=="Not Available"]=0
+proj$ResponseP[ proj$ResponseP=="Not Available"]=33
+
+"since there are too many NA in that, so I just change the NA into zero, and delete the unrelated variable"
+proj$StarN[ is.na(proj$StarN)]=0
+proj$PercentN[ is.na(proj$PercentN)]=0
+proj$NumberC[ is.na(proj$NumberC)]=0
+proj$ResponseN[ is.na(proj$ResponseN)]=0
+proj$Number[ proj$Number=="Not Available"]=0
+proj_new=proj[-c(10)]
+proj_new=na.omit(proj_new)
+
+"since from the dataset we can know that, there is a lot of string which contain the number and the non-numeric, so I just use the code to delete the non-numeric and get the new dataset which called the proj_new"
+proj_new$StarN=gsub("[^0-9]", "", proj_new$StarN)
+proj_new$PercentN=gsub("[^0-9]", "", proj_new$PercentN)
+proj_new$Number=gsub("[^0-9]", "", proj_new$Number)
+proj_new$NumberC=gsub("[^0-9]", "", proj_new$NumberC)
+proj_new$ResponseN=gsub("[^0-9]", "", proj_new$ResponseN)
+head(proj_new)
+
+"in order to get the outcome more details, I follow my advisor's suggestion to find another dataset which is about the score of hospital satisfaction, and then plug the new dataset into R"
+experience_rank <- read_excel("C:/Users/Hao/Desktop/experience rank.xlsx")
+"thoes new dataset followed the patient ID, and then I combine them"
+library(dplyr)
+proj_new <- read_excel("C:/Users/Hao/Desktop/Copy of projecttttt.xlsx")
+
+```
+
+
+## 3.1 counts of the star ratings
+```{r}
+hist(as.numeric(proj_new$Star), main="The Histogram of Star", xlim = c(1,5), xlab="star rating",col="pink")
+"from the outcome, we can get that the star one has the largest proportion in this plot"
+```
+
+
+##3.2 star ratings for each states
+
+```{r}
+library(ggplot2)
+proj_new=proj_new[-c(1)]
+proj_state=proj_new[, c(2,6)]
+ggplot(proj_state,aes(x=State,y=Star))+geom_jitter()+labs(title="bar of the rating of each state",x="State",y="Star")+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+"from the jitter plot, we can get that most of the points are located in AK AL AR AZ CA MN MO MS MT NE, so I will choose thoes to find more information about this"
+proj_state_new=filter(proj_state, State==c("AK","AL","AR","AZ","CA","MN","MO","MS","MT","ME"))
+ggplot(proj_state_new,aes(State))+geom_bar(aes(fill=factor(Star)))
+
+"from the state plot, we can easily get that star is equal to one still has the largest proportion, and also we can know that the MO has the largest count for that."
+```
+
+```{r}
+"for the anwerp and star"
+proj_AnwerP=proj_new[, c(6,8)]
+ggplot(proj_AnwerP,aes(x=AnwerP,y=Star))+geom_jitter()+labs(title="jitter of the rating of anwerp",x="Percent",y="Star")+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+"for the number and star"
+proj_Number=proj_new[, c(6,10)]
+ggplot(proj_Number,aes(x=Number,y=Star))+geom_jitter()+labs(title="jitter of the rating of number",x="Number",y="Star")+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+"for the response and star"
+proj_ResponseP=proj_new[, c(6,12)]
+ggplot(proj_ResponseP,aes(x=ResponseP,y=Star))+geom_jitter()+labs(title="jitter of the rating of response",x="response",y="Star")+theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+"for the rank and star"
+ggplot(proj_new,aes(x=rank,y=Star))+geom_jitter()+geom_smooth(method = "lm")
+```
+
+
+
+```{r}
+"fit the model"
+library(lme4)
+Star=proj_new$Star
+AnwerP=proj_new$AnwerP
+Number=proj_new$Number
+ResponseP=proj_new$ResponseP
+rank=proj_new$rank
+fit1=lmer(Star~AnwerP+Number+ResponseP+rank+(1|State), data=proj_new)
+summary(fit1)
+fit2=lmer(Star~AnwerP+State+Number+ResponseP+rank+(1|State), data=proj_new)
+summary(fit2)
+AIC(fit2,fit1)
+"from the first two fitted model, I will pick the first one as my best, since it has a lower AIC between them"
+fit3=lmer(Star~AnwerP+Number+ResponseP+rank+AnwerP:State+(1|State), data=proj_new)
+summary(fit3)
+fit4=lmer(Star~AnwerP+Number+ResponseP+rank+rank:State+(1|State), data=proj_new)
+summary(fit4)
+fit5=lmer(Star~AnwerP+Number+ResponseP+rank+Number:State+(1|State), data=proj_new)
+summary(fit5)
+fit6=lmer(Star~AnwerP+Number+ResponseP+rank+ResponseP:State+(1|State), data=proj_new)
+summary(fit6)
+AIC(fit1, fit3, fit4, fit5, fit6)
+"fit1 is the best model I fitted"
+
+```
+
+```{r}
+"For the previous models that I fit, there are only random intercept effect. I picked the best model fit and now I will be fitting random slope models."
+
+fit7=lmer(Star~AnwerP+Number+ResponseP+rank+(1+AnwerP|State), data=proj_new)
+summary(fit7)
+fit8=lmer(Star~AnwerP+Number+ResponseP+rank+(1+Number|State), data=proj_new)
+summary(fit8)
+fit9=lmer(Star~AnwerP+Number+ResponseP+rank+(1+ResponseP|State), data=proj_new)
+summary(fit9)
+fit10=lmer(Star~AnwerP+Number+ResponseP+rank+(1+rank|State), data=proj_new)
+summary(fit10)
+AIC(fit7, fit8, fit9, fit10)
+"from the AIC, we can get the fit10 is the best model I fitted, since it has the lowest AIC"
+
+fit11=lmer(Star~AnwerP+Number+ResponseP+rank+AnwerP:State+(1+rank|State), data=proj_new)
+summary(fit11)
+fit12=lmer(Star~AnwerP+Number+ResponseP+rank+Number:State+(1+rank|State), data=proj_new)
+summary(fit12)
+fit13=lmer(Star~AnwerP+Number+ResponseP+rank+ResponseP:State+(1+rank|State), data=proj_new)
+summary(fit13)
+fit14=lmer(Star~AnwerP+Number+ResponseP+rank+rank:State+(1+rank|State), data=proj_new)
+summary(fit14)
+AIC(fit10,fit11,fit12,fit13,fit14)
+"for now, the only two left are fit1 and fit10"
+
+```
+
+
+```{r}
+"after fit1 model and the fir10 model, I will do the comparison, and find the best one"
+library(arm)
+plot(fit1)
+plot(fit10)
+binnedplot(predict(fit1),resid(fit1))
+binnedplot(predict(fit10),resid(fit10))
+anova(fit1,fit10)
+summary(fit1)
+```
+
